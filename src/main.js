@@ -13,10 +13,27 @@ import { AnimationAction } from 'three';
 // ============================== Global - variables ================================
 
 let sceneModel = '/assets/glb/P_V3.glb';
+
+const scene1Model = '/assets/glb/Z1.glb'
+const scene2Model = '/assets/glb/Z2.glb'
+const scene3Model = '/assets/glb/Z3.glb'
+const scene4Model = '/assets/glb/Z4.glb'
+
 let mixer;
 
+// const loader = new THREE.GLTFLoader()  // This comes from GLTFLoader.js.
+const loader = new GLTFLoader()  // This comes from GLTFLoader.js.
+const raycaster = new THREE.Raycaster()
+const tapPosition = new THREE.Vector2()
+const clock = new THREE.Clock()
+
+const model = []
+const modelScale = 10
+let currentIndex = 0
+
+// ============================== Global - variables ================================
+
 let videoSources = [
-  '/assets/videos/v_0.mp4',
   '/assets/videos/v_1.mp4',
   '/assets/videos/v_2.mp4',
   '/assets/videos/v_3.mp4',
@@ -24,7 +41,6 @@ let videoSources = [
 ];
 
 let videoAspectRatios = [
-  2,
   1,
   1,
   1,
@@ -32,12 +48,14 @@ let videoAspectRatios = [
 ];
 
 let videoName = [
-  'Idle Video',
   'Zone - 1',
   'Zone - 2',
   'Zone - 3',
   'Zone - 4',
 ];
+
+const video = []
+const videoTexture = []
 
 // ============================== GUI - Setup ======================================
 
@@ -51,9 +69,6 @@ videoSources.forEach((source, index) => {
 });
 
 // ================================= Video Textures ==================================
-
-const video = [];
-const videoTexture = [];
 
 const videoTextureSetup = (source, aspect, index) => {
 // Video Element and Video Texture
@@ -87,17 +102,40 @@ const videoMaterial = new THREE.MeshBasicMaterial();
 // Switch Video textures
 function switchTexture(index) {
   if (videoMaterial.map) {
-    videoMaterial.map.dispose(); // Dispose of the old texture
+    videoMaterial.map.dispose()  // Dispose of the old texture
   }
 
-  videoMaterial.map = videoTexture[index]; // Set the new texture
-  videoMaterial.needsUpdate = true;
-  video[index].play(); // Play the new video
+  videoMaterial.map = videoTexture[index]  // Set the new texture
+  videoMaterial.needsUpdate = true
 
-  console.log('Switched to video texture:', videoName[index]);
+  video[index].pause()
+  video[index].currentTime = 0
+  video[index].load()
+
+  video[index].play()  // Play the new video
+
+  console.log('Switched to video texture:', videoName[index])
 }
 
-switchTexture(0); // Start with the first video texture
+switchTexture(0);
+
+function switchModel(index) {
+  model[0].visible = false
+  model[1].visible = false
+  model[2].visible = false
+  model[3].visible = false
+
+  model[index].visible = true
+}
+
+function switchIndex() {
+  currentIndex++
+  if (currentIndex > 3) currentIndex = 0
+  switchTexture(currentIndex)
+  switchModel(currentIndex)
+  console.log(mixer[currentIndex])
+  mixer[currentIndex].setTime(0)
+}
 
 // ================================= ThreeJS - Scene ================================
 
@@ -157,57 +195,67 @@ scene.add(pointLight);
 
 // ================================ GLTF - Model ================================
 
-const loader = new GLTFLoader();
-loader.load(sceneModel,
-  (gltf) => {
-    resolve(gltf);
-  },
-  undefined,
-
-  (xhr) => {
-    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-  },
-
-  (error) => {
-    console.error('An error occurred while loading the model:', error);
-  }
-);
-
-function resolve(gltf) {
+function resolve(gltf, index) {
   // Add the loaded model to the scene
-  const model = gltf.scene;
-  scene.add(model);
-  console.log('Model loaded:', model);
+  model[index] = gltf.scene
+  model[index].visible = false
+  scene.add(model[index])
+  console.log('Model loaded:', model[index])
 
   // Video Texture
-  model.traverse((child) => {
-    if (child.isMesh && child.material && child.material.name === 'Display') {
-      // child.material = new THREE.MeshBasicMaterial({
-      //   map: videoTexture1,
-      // });
-      // video1.play();
-      // console.log('Video texture applied to:', child);
-
+  model[index].traverse((child) => {
+    if (child.isMesh && child.material && (
+      child.material.name === 'Video_Mat_1' ||
+      child.material.name === 'Video_Mat_2' ||
+      child.material.name === 'Video_Mat_3' ||
+      child.material.name === 'Video_Mat_4'
+    )) {
       child.material = videoMaterial
     }
-  });
+  })
 
   // Set up the AnimationMixer and play all animations
-  mixer = new THREE.AnimationMixer(model);
+  mixer[index] = new THREE.AnimationMixer(model[index])
   gltf.animations.forEach((clip) => {
-    mixer.clipAction(clip).play();
-    mixer.clipAction(clip).setLoop(THREE.LoopOnce);
-    mixer.clipAction(clip).clampWhenFinished = true; // Clamp the animation
-  });
+    mixer[index].clipAction(clip).play()
+    mixer[index].clipAction(clip).setLoop(THREE.LoopOnce)
+    mixer[index].clipAction(clip).clampWhenFinished = true  // Clamp the animation
+  })
 }
+
+loader.load(scene1Model,
+  (gltf) => {
+    // resolve(gltf, 0)
+  })
+
+loader.load(scene2Model,
+  (gltf) => {
+    // resolve(gltf, 1)
+  })
+
+loader.load(scene3Model,
+  (gltf) => {
+    // resolve(gltf, 2)
+  })
+
+loader.load(scene4Model,
+  (gltf) => {
+    // resolve(gltf, 3)
+  })
+
+// Here we add an event listener to the button.
+document.getElementById('actionButton').addEventListener('click', () => {
+  // switchIndex()
+})
 
 // ================================= Animation - loop ================================
 
 function animate() {
-  requestAnimationFrame(animate);
-  controls.update(); // Update controls
-  if (mixer) {
-    mixer.update(0.01); // Update the animation mixer
+  requestAnimationFrame(animate)
+  
+  if (mixer[currentIndex]) {
+    const delta = clock.getDelta()
+    mixer[currentIndex].update(delta)
   }
 
   renderer.render(scene, camera);

@@ -5,7 +5,6 @@ const imageTargetPipelineModule = () => {
   const clock = new THREE.Clock()
 
   const model = []
-  let videoObj
   const modelScale = 10
   let currentIndex = 0
 
